@@ -16,13 +16,28 @@ export default async function handler(req, res) {
             }
         });
 
+        // نسخ الترويسات مع السماح بالتحكم بالعرض
         response.headers.forEach((v, k) => {
-            res.setHeader(k, v);
+            if (k.toLowerCase() !== 'content-security-policy' && k.toLowerCase() !== 'x-frame-options') {
+                res.setHeader(k, v);
+            }
         });
         
         res.status(response.status);
-        const arrayBuffer = await response.arrayBuffer();
-        res.send(Buffer.from(arrayBuffer));
+        const contentType = response.headers.get('content-type') || '';
+
+        // إذا كانت الصفحة HTML، نقوم بتعديل الروابط الداخلية لتمر عبر البروكسي الخاص بك
+        if (contentType.includes('text/html')) {
+            let html = await response.text();
+            
+            // حقن قاعدة لتعديل مسارات الـ iframe أو الـ fetch الداخلية إن وجدت
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            return res.send(html);
+        } else {
+            const arrayBuffer = await response.arrayBuffer();
+            return res.send(Buffer.from(arrayBuffer));
+        }
+
     } catch (err) {
         res.status(500).send('Proxy error: ' + err.message);
     }
